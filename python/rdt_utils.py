@@ -119,7 +119,7 @@ def normalize_path(path: str, sep='/', strip_drive=False) -> str:
     raise RuntimeError(f"Invalid separator, must be '/' or '\\'.  Offending path: {path}")
 
 def path_depth(path: str):
-    return len([part for part in normalize_path(path).split('/') if part])
+    return len([part for part in normalize_path(path, strip_drive=True).split('/') if part])
 
 def get_project_root_path(path: str = '') -> str:
     if not path:

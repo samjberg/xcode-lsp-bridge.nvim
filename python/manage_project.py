@@ -203,9 +203,16 @@ class Project:
         self.increment_write_count()
         self.write_count = (self.write_count + 1) % self.writes_per_sync
         with open('C:/Users/sjber/Coding/RemoteDevelopmentTools/tmp.txt', 'a') as f:
-            f.write(f'syncing with write_count: {self.write_count}')
+            now: dt.datetime = dt.datetime.now()
+            f.write(f'[{now}] syncing with write_count: {self.write_count}')
         self.last_sync_timestamp = dt.datetime.now().isoformat()
         self.save()
+
+
+    def __getitem__(self, key: str):
+        if not isinstance(key, str):
+            raise TypeError(f'Error, Project key must be of type str, got: {type(key)}')
+        return self.dct.get(key, None)
 
     def __str__(self):
         return json.dumps(self.as_dict())
@@ -311,19 +318,37 @@ def build_project(project: Project|str):
 
 
 def get_subcommand(arg_dct: dict):
-    subcommands = ['sync', 'autosync', 'configure', 'add', 'track', 'build']
+    subcommands = ['sync', 'autosync', 'conf', 'configure', 'add', 'remove', 'create', 'track', 'build', 'list']
     for arg in arg_dct['args']:
         if arg.lower() in subcommands:
             return arg.lower()
 
 
+def get_project_type(arg_dct: dict):
+    short_flags: dict = arg_dct['short']
+    long_flags: dict = arg_dct['long']
+    if 'projecttype' in short_flags:
+        return ProjectType.parse(short_flags['projecttype'])
+
+    lang = short_flags.get('language_id', long_flags.get('language_id', ''))
+    build_type = short_flags.get('build_type', long_flags.get('build_type', ''))
+    subtype = short_flags.get('subtype', long_flags.get('subtype', ''))
+    return ProjectType(lang, build_type, subtype)
 
 
-print(tracked_projects_path)
+# print(tracked_projects_path)
+
+
+sorting_functions = {'creation_date': lambda proj: dt.datetime.fromisoformat(proj.creation_timestamp),
+                     'sync_date': lambda proj: dt.datetime.fromisoformat(proj.last_sync_timestamp),
+                     'name': lambda proj: proj.name,
+                     'id': lambda proj: proj.id}
 
 if __name__ == '__main__':
 
 
+    # for _ in range(100):
+    #     print('HELLO')
 
     with open('C:/Users/sjber/Coding/RemoteDevelopmentTools/tmp.txt', 'a') as f:
         f.write(f'THE FILE IS AT LEAST FUCKING RUNNING\ntracked_projects_path: {tracked_projects_path}\n')
@@ -333,9 +358,9 @@ if __name__ == '__main__':
     short_flags = arg_dct['short']
     plain_args = arg_dct['args']
 
-    print(f'long_flags: {long_flags}')
-    print(f'short_flags: {short_flags}')
-    print(f'plain_args: {plain_args}')
+    # print(f'long_flags: {long_flags}')
+    # print(f'short_flags: {short_flags}')
+    # print(f'plain_args: {plain_args}')
 
 
     for k, v in long_flags.items():
@@ -344,15 +369,37 @@ if __name__ == '__main__':
     for k, v in short_flags.items():
         short_flags[k.lower()] = v
 
+    # Load tracked projects
+    tracked_projects = load_tracked_projects()
+    # Get proj command (i.e. 'proj' itself is a command, get the specific proj command to run.  E.g. 'list', 'add', 'build', etc.)
     cmd = get_subcommand(arg_dct)
+    if cmd == 'list':
+        if 'sort' in short_flags or 'sortby' in short_flags:
+            sort_type: str|None = short_flags.get('sort', 'date')
+            if not (isinstance(sort_type, str) or sort_type is None):
+                raise RuntimeError()
+            if sort_type is None:
+                sort_type = 'date'
+
+            sort_reversed = (('rev' in short_flags) or ('r' in short_flags) or ('reverse' in long_flags) or ('reversed' in long_flags))
+            key = lambda proj: dt.datetime.fromisoformat(proj.creation_timestamp)
+
+            # sorted(
+
+
+
+        for proj_id, proj in tracked_projects.items():
+            print(proj.name)
+        # exit()
+
 
     remote_host = ''
     root_path = sys.argv[-1] if len(sys.argv) > 1 else ''
     if not root_path or not os.path.exists(root_path):
         root_path = normalize_path(get_project_root_path(os.getcwd()))
 
-    print(f'root_path: {root_path}')
-    print(f'cmd: {cmd}')
+    # print(f'root_path: {root_path}')
+    # print(f'cmd: {cmd}')
 
     for arg in sys.argv[1:]:
         if arg.startswith('--remote-host='):
@@ -363,17 +410,14 @@ if __name__ == '__main__':
         with open(tracked_projects_path, 'w') as f:
             json.dump({}, f)
 
-    tracked_projects = load_tracked_projects()
     project = None
     for id, proj in tracked_projects.items():
         if proj.root_path == root_path:
             project = proj
             break
 
-
+    
     if project is not None:
-        for _ in range(10):
-            print('PROJECT IS NOT NONE')
         if cmd == 'sync':
             # Immediately sync regardless of project's sync settings.  Does not affect sync settings (including write_count) in any way
             # For use mainly by command line commands which are wrappers around this file's functionality
@@ -391,8 +435,8 @@ if __name__ == '__main__':
                 else:
                     project.increment_write_count()
                     project.save()
-        elif cmd == 'configure':
-            print('In configure code')
+        elif cmd == 'configure' or cmd == 'conf':
+            # print('In configure code')
             if 'show' in short_flags or 'show' in long_flags:
                 keys = ['name', 'id', 'root_path', 'sync_mode', 'creation_timestamp', 'last_sync_timestamp', 'writes_per_sync', 'write_count']
                 for key in keys:
@@ -401,8 +445,8 @@ if __name__ == '__main__':
                 exit()
 
             if 'syncmode' in short_flags or 'syncmode' in long_flags:
-                for _ in range(10):
-                    print('IN SYNCMODE BRANCH')
+                # for _ in range(10):
+                #     print('IN SYNCMODE BRANCH')
                 sync_mode: str = short_flags.get('syncmode', long_flags.get('syncmode', '')).lower()
                 if sync_mode == 'never':
                     project.sync_mode = 0
@@ -425,9 +469,15 @@ if __name__ == '__main__':
             project.save()
 
         elif cmd == 'build':
-            print('cmd == \'build\'')
+            # print('cmd == \'build\'')
             remote = True if (project.project_type.build_type == 'xcode' and sys.platform == 'win32') else False
             project.build(remote=remote)
+
+        elif cmd == 'remove':
+            if project.id in tracked_projects:
+                del tracked_projects[project.id]
+                with open(tracked_projects_path, 'w') as f:
+                    json.dump(tracked_projects, f)
 
     else:
         # project is None, meaning the current project is not already tracked
@@ -435,6 +485,21 @@ if __name__ == '__main__':
             # If cmd is 'add' or 'track', track the project that cwd is inside of
             proj = track_existing_project(root_path)
             print(f'newly tracked project: {str(proj)}')
+        elif cmd == 'create':
+            if 'platform' in short_flags:
+                platform: str = short_flags['platform']
+            else:
+                platform: str = input('Enter platform for project (e.g. , "windows", "mac", "ios", "linux", "android", etc): ')
+
+            if 'language' in short_flags:
+                language: str = short_flags['language']
+            else:
+                language: str = input('Enter primary programming language (use conventional names such as "cpp" instead of "c++"): ')
+
+
+
+            create_new_project()
+            pass
 
 
 
@@ -442,6 +507,8 @@ if __name__ == '__main__':
 
 
 #comment test
+
+# print(f'argv[0]: {sys.argv[0]}')
 
 
 

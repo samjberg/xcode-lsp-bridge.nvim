@@ -105,7 +105,7 @@ class Buffer:
         self.uri:      str = msg.get('params', 'textDocument', 'uri')
         self.path:     str = uri_to_path(self.uri)
         self.filename: str = self.path.split('/')[-1]
-        self.dup_path: str = os.path.join(user_home_local, 'tmp', 'openbuffers', self.filename)
+        # self.dup_path: str = os.path.join(user_home_local, 'tmp', 'openbuffers', self.filename)
         self.text:     str = msg.get('params', 'textDocument', 'text', default_value='')
         # Getting document symbols requires sending a LSP message to sourcekit-lsp, so it cannot be done synchonously
         # So here we declare self.document_symbols as an empty list, and then send off a textDocument/documentSymbol request
@@ -120,8 +120,8 @@ class Buffer:
             with open(self.path, 'r') as f:
                 self.text = f.read()
         self.lines: list[str] = self.text.splitlines(keepends=True)
-        with open(self.dup_path, 'wb') as f:
-            f.write(self.text.encode())
+        # with open(self.dup_path, 'wb') as f:
+        #     f.write(self.text.encode())
 
         if self.lines:
             if self.lines[0]:
@@ -138,26 +138,31 @@ class Buffer:
         '''
         Returns the character offset in self.text required to be at line number `line`
         '''
-        blank_lines_before = len([line for line in self.lines[:line_number+1] if line in ['', '\n', '\r\n']])
-        pos = 0
-        for i, line in enumerate(self.lines):
-            if i == line_number:
-                return pos
-                # return self.text.find(line)
-            pos += len(line)
-        raise RuntimeError('Unknown error getting line start pos.  You just gotta fix the Buffer.get_line_start_pos() method')
+        if line_number >= len(self.lines):
+            raise RuntimeError(f'Error in get_line_start_pos, line_number: {line_number} is greater than number of lines in buffer')
+        elif line_number < 0:
+            raise RuntimeError(f'Error in get_line_start_pos, line_number: {line_number} is less than 0')
+        return sum([len(self.lines[i]) for i in range(line_number)])
+        # blank_lines_before = len([line for line in self.lines[:line_number+1] if line in ['', '\n', '\r\n']])
+        # pos = 0
+        # for i, line in enumerate(self.lines):
+        #     if i == line_number:
+        #         return pos
+        #         # return self.text.find(line)
+        #     pos += len(line)
+        # raise RuntimeError('Unknown error getting line start pos.  You just gotta fix the Buffer.get_line_start_pos() method')
 
     def get_offset(self, pos: Position) -> int:
         return self.get_line_start_pos(pos.line) + pos.col
 
 
-    def apply_change(self, change: dict, update_dup: bool = True):
+    def apply_change(self, change: dict):
         rnge_dct = change.get('range', {})
         if not rnge_dct:
             raise RuntimeError(f"Error, 'range' key not found in given change: {change}")
         rnge = selection_from_dict(change)
         text: str = str(change.get('text', None))
-        if text is None:
+        if text is None or text == 'None':
             raise RuntimeError(f"Error, 'text' key not found in given change: {change}")
         start = rnge.start
         end = rnge.end
@@ -168,15 +173,15 @@ class Buffer:
 
         # update self.lines
         self.lines = self.text.splitlines(keepends=True)
-        if update_dup:
-            with open(self.dup_path, 'wb') as f:
-                f.write(self.text.encode())
+        # if update_dup:
+        #     with open(self.dup_path, 'wb') as f:
+        #         f.write(self.text.encode())
 
 
     def apply_didchange_message(self, msg: Message, update_last_change_time=True):
         changes: list[dict] = msg.get('params', 'contentChanges', default_value=[])
         for change in changes:
-            self.apply_change(change, update_dup=True)
+            self.apply_change(change)
         if update_last_change_time:
             self.last_change_time = time.monotonic()
             self.needs_ds_update = True
@@ -198,16 +203,16 @@ class Buffer:
 
 
 
-def close_buffer(uri: str):
-    log_unmissable(f'CLOSING BUFFER FOR URI: {uri}')
-    if isinstance(uri, Buffer):
-        uri = uri.uri
-    if uri in open_buffers:
-        buf = open_buffers[uri]
-        os.remove(buf.dup_path)
-        del open_buffers[uri]
-    else:
-        log(f'ATTEMPTED TO CLOSE BUFFER WITH URI: {uri} WHICH WAS NOT FOUND IN open_buffers')
+# def close_buffer(uri: str):
+#     log_unmissable(f'CLOSING BUFFER FOR URI: {uri}')
+#     if isinstance(uri, Buffer):
+#         uri = uri.uri
+#     if uri in open_buffers:
+#         buf = open_buffers[uri]
+#         os.remove(buf.dup_path)
+#         del open_buffers[uri]
+#     else:
+#         log(f'ATTEMPTED TO CLOSE BUFFER WITH URI: {uri} WHICH WAS NOT FOUND IN open_buffers')
 
 
 

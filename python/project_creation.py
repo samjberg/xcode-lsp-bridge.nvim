@@ -93,6 +93,32 @@ def create_project_base(root_path: str, project_name: str = ''):
 #     sync_project(root_path, sync_direction=PULL, dry_run=False)
 
 
+def validate_cmake_project_name(project_name: str) -> bool:
+    # project_name must not be empty
+    if not project_name:
+        return False
+    # project_name must be a str
+    if not isinstance(project_name, str):
+        return False
+    # project_name must start with an alphabetic character
+    if not project_name[0].isalpha():
+        return False
+    return True
+
+def create_cmake_project(root_path: str, project_name: str = ''):
+    if not validate_cmake_project_name(project_name):
+        raise ValueError(f'Error, invalid project name: {project_name}')
+
+
+    cmakelists_template_path = normalize_path(os.path.join(rdt_root_path, 'project-templates', 'cmake', 'cpp', 'CMakeLists.txt'))
+    with open(cmakelists_template_path, 'r') as f:
+        cmakelists_template_text = f.read()
+
+    cmakelists_template_text = cmakelists_template_text.replace('projectname', project_name)
+
+    # cmakelists_template_p
+    # cmake_proj_name = proj
+
 def create_ios_project(root_path: str, project_name: str = ''):
     '''
     Create an ios project at the given `root_path`

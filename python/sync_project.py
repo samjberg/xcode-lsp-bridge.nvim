@@ -38,6 +38,8 @@ def create_rsync_cmd(local_path: str, remote_path: str, sync_direction=PUSH, loc
     return shlex.split(f'{base} {local} {remote}') if sync_direction==PUSH else shlex.split(f'{base} {remote} {local}')
 
 def sync_project(project_root: str = '', sync_direction=PUSH, dry_run=True):
+    if sync_direction not in [PUSH, PULL]:
+        raise ValueError(f"Error, sync direction must be 'push' or 'pull', got: {sync_direction}")
     if not project_root:
         project_root = current_project_root_local
     remote_project_root = clangd_path_mapping_path(project_root)
@@ -55,8 +57,12 @@ def sync_project(project_root: str = '', sync_direction=PUSH, dry_run=True):
             else:
                 f.write(proc.stdout.decode(errors='replace'))
 
+    from_device: str  = 'PC' if sync_direction == PUSH else 'Mac'
+    to_device: str = 'Mac' if sync_direction == PUSH else 'Pc'
+    print(f'Synced project from {from_device} to {to_device}')
 
-print(remote_host)
+
+
 
 
 if __name__ == '__main__':

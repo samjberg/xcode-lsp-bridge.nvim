@@ -327,7 +327,7 @@ def debounce_did_change_messages():
     '''This function handles debouncing textDocument/didChange messages.  Once a Buffer has been changed and then
        `debounce_interval` seconds pass, a textDocument/documentSymbol request is sent to sourcekit-lsp.  The point is to
        keep the `DocmentSymbol`s up to date for all buffers, without having to recompute them on literally every keypress'''
-    debounce_interval = 0.5
+    debounce_interval = 1.5
     while not shutting_down:
         curr_time = time.monotonic()
         for uri, buf in open_buffers.items():
@@ -340,7 +340,7 @@ def debounce_did_change_messages():
                 # buf's
                 buf.needs_ds_update = False
                 buf.ds_update_in_flight = True
-        time.sleep(0.1)
+        time.sleep(0.25)
 
 
 def nvim_to_backend():
@@ -380,9 +380,9 @@ def nvim_to_backend():
             # cause the didOpen message to be sent twice
             continue
 
-        elif method == 'textDocument/didClose':
-            uri = msg.get('params', 'textDocument', 'uri')
-            close_buffer(uri)
+        # elif method == 'textDocument/didClose':
+        #     uri = msg.get('params', 'textDocument', 'uri')
+        #     close_buffer(uri)
 
         elif method == 'textDocument/didChange':
             uri = msg.get('params', 'textDocument', 'uri')
@@ -404,10 +404,10 @@ def nvim_to_backend():
             shutting_down = True
             clear_proxy_state()
             log_unmissable('ABOUT TO CLOSE REMAINING BUFFERS')
-            buf_uris = list(open_buffers.keys())
-            for uri in buf_uris:
-                log(f'CLOSING BUFFER FOR URI: {uri}')
-                close_buffer(uri)
+            # buf_uris = list(open_buffers.keys())
+            # for uri in buf_uris:
+            #     log(f'CLOSING BUFFER FOR URI: {uri}')
+            #     close_buffer(uri)
 
             with sourcekit_in_lock:
                 os.write(sourcekit_lsp_in_fd, translated_data)
@@ -523,9 +523,9 @@ dev_null.close()
 clear_proxy_state()
 
 log_unmissable('ABOUT TO CLOSE REMAINING BUFFERS')
-for uri, buf in open_buffers.items():
-    log(f'CLOSING BUFFER FOR URI: {uri}')
-    close_buffer(uri)
+# for uri, buf in open_buffers.items():
+#     log(f'CLOSING BUFFER FOR URI: {uri}')
+#     close_buffer(uri)
 
 
 
