@@ -138,8 +138,8 @@ class Buffer:
         '''
         Returns the character offset in self.text required to be at line number `line`
         '''
-        if line_number >= len(self.lines):
-            raise RuntimeError(f'Error in get_line_start_pos, line_number: {line_number} is greater than number of lines in buffer')
+        if line_number > len(self.lines):
+            raise RuntimeError(f'Error in get_line_start_pos, line_number: {line_number} is greater than number of lines in buffer: {len(self.lines)}')
         elif line_number < 0:
             raise RuntimeError(f'Error in get_line_start_pos, line_number: {line_number} is less than 0')
         return sum([len(self.lines[i]) for i in range(line_number)])
@@ -153,6 +153,23 @@ class Buffer:
         # raise RuntimeError('Unknown error getting line start pos.  You just gotta fix the Buffer.get_line_start_pos() method')
 
     def get_offset(self, pos: Position) -> int:
+        '''
+        Returns the linear offset of `pos` (a Position, which is a position in terms of line number and column number)
+        For example if a buffer has line lengths of line0: 20, line1: 8: line2: 40, then a pos with line=2 col=6 will
+        return the offset 34 (20 + 8 (for full length of the first 2 lines) + 6 (for the column offset))
+        '''
+        num_lines: int = len(self.lines)
+        if pos.line < num_lines:
+            if pos.col > len(self.lines[pos.line]):
+                raise RuntimeError(f'Error, pos: {pos} has column greater than length of its line (line length: {len(self.lines[pos.line])}')
+            elif pos.col < 0:
+                raise RuntimeError(f'Error, pos: {pos} has column less than 0')
+        elif pos.line == num_lines:
+            # special case for adding new lines.  verify that character == 0, otherwise the message was invalid
+            if pos.col != 0:
+                raise RuntimeError(f'Error, pos: {pos} is on line after last line, but column is not 0')
+        else:
+            raise RuntimeError(f'Error pos: {pos} has line too great, number of lines in buffer: {num_lines}')
         return self.get_line_start_pos(pos.line) + pos.col
 
 
@@ -166,10 +183,18 @@ class Buffer:
             raise RuntimeError(f"Error, 'text' key not found in given change: {change}")
         start = rnge.start
         end = rnge.end
-        start_pos = self.get_line_start_pos(start.line) + start.col
-        end_pos = self.get_line_start_pos(end.line) + end.col
+        # if end_pos is on the line AFTER the last line
+        if end.line == len(self.lines):
+            # Make sure that col == 0, because this line after the last line represents adding new content on a new line, and it is
+            # being inserted between the last character of the last line and the first character of the next (currently nonexistent) line
+            if end.col != 0:
+                raise RuntimeError(f'Error end_line: {end} is line after last line, but column is not 0')
+
+        # get the offsets for the start and end pos
+        start_offset = self.get_offset(start) 
+        end_offset   = self.get_offset(end) 
         #update self.text with the new text
-        self.text = self.text[:start_pos] + text + self.text[end_pos:]
+        self.text = self.text[:start_offset] + text + self.text[end_offset:]
 
         # update self.lines
         self.lines = self.text.splitlines(keepends=True)

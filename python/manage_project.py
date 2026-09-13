@@ -422,7 +422,10 @@ if __name__ == '__main__':
             # Immediately sync regardless of project's sync settings.  Does not affect sync settings (including write_count) in any way
             # For use mainly by command line commands which are wrappers around this file's functionality
             # The specific command to use this is: proj sync
-            project.sync()
+            sync_dir: str = PULL if ('pull' in short_flags) or ('pull' in long_flags) else PUSH
+            project.sync(sync_dir)
+
+
             exit()
         elif cmd == 'autosync':
             # This command is really only for use by the nvim plugin, which calls this file with autosync as an argument
