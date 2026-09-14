@@ -22,7 +22,7 @@ class DocumentSymbol:
         '''
         self.symbol: str = dct.get('name', '')
         if not self.symbol:
-            raise RuntimeError("Error creating DocumentSymbol, 'name' not found in dct")
+            raise RuntimeError(f"Error creating DocumentSymbol, 'name' not found in dct: {dct}")
         self.name: str = self.symbol #just an alias for self.symbol
         self.uri = uri
         self.buffer = open_buffers[uri]
@@ -40,7 +40,8 @@ class DocumentSymbol:
         if self.kind == -1:
             raise RuntimeError("Error creating DocumentSymbol, 'kind' not found in dct")
         self.parent: DocumentSymbol|None = parent
-        self.children: list[DocumentSymbol] = [DocumentSymbol(child, uri, self) for child in dct.get('children', [])]
+        # Filter out dicts from becoming DocumentSymbols if name == '', for the same reasons outlined in the comment in document_symbols_from_message
+        self.children: list[DocumentSymbol] = [DocumentSymbol(child, uri, self) for child in dct.get('children', []) if child.get('name', None) != '']
         self.context_str = '/'.join(self.get_full_context())
 
     def contains(self, pos: Position) -> bool:
@@ -248,7 +249,11 @@ def document_symbols_from_message(msg: Message, uri: str) -> list[DocumentSymbol
             return []
         raise RuntimeError(f"Error, 'result' not found in textDocument/documentSymbol response: {msg.dct}")
     results: list[dict] = msg.get('result')
-    document_symbols = [DocumentSymbol(ds_dct, uri) for ds_dct in results]
+    # Filter dicts where name is an empty string.  This can sometimes happen where sourcekit-lsp sends
+    # a DocumentSymbol message with an empty name because you typed something like 'let ' and then waited too long
+    # so it sends the message because it is expecting a symbol there, but there is no symbol, so it ends up sending an empty name
+    # Ignoring this should be totally safe, and it prevents raising a RuntimeError which crashes the language server
+    document_symbols = [DocumentSymbol(ds_dct, uri) for ds_dct in results if ds_dct.get('name', None) != '']
     return document_symbols
 
 open_buffer_count = 0
