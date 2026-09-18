@@ -7,6 +7,7 @@ from retrieve_file import retrieve_header_file, headers_dir_path
 from lspobjects import Message, EMPTY_MESSAGE, INVALID_ID, get_body_start_idx
 from definition_mapping import *
 from track_buffers import *
+from mdnsresolver.mdns import resolve_hostname
 
 sourcekit_in_lock = threading.Lock()
 stdout_lock = threading.Lock()
@@ -31,7 +32,8 @@ remote_sourcekit_lsp_cmd = f'cd {shlex.quote(current_project_root_remote)} && {s
 # remote_sourcekit_lsp_cmd = 'cd ' + shlex.quote(current_project_root_remote) + ' && xcrun ' + sklsp_path + ' 2>/Users/sam/tmp/sklsp.log'
 ssh_path: str = 'C:/msys64/usr/bin/ssh.exe'
 # remote_cmd_args = [ssh_path, '-T', remote_host, *shlex.split(remote_sourcekit_lsp_cmd)]
-remote_cmd_args = [ssh_path, '-T', '-o', 'Hostname=10.0.0.5', '-o', 'HostKeyAlias=Sams-MacBook-Pro.local', 'mac-clangd', *shlex.split(remote_sourcekit_lsp_cmd)]
+remote_ip = resolve_hostname(remote_host)
+remote_cmd_args = [ssh_path, '-T', '-o', f'Hostname={remote_ip}', '-o', f'HostKeyAlias={remote_host}', remote_host_ssh, *shlex.split(remote_sourcekit_lsp_cmd)]
 dev_null = open(os.devnull, 'w')
 stderr = dev_null
 # stderr = open('C:/Users/sjber/tmp/lsp_proxy_error_log.txt', 'ab')

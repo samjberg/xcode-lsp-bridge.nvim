@@ -24,6 +24,18 @@ class URIType(Enum):
     REMOTE_HEADER      = 3
 
 
+
+def convert_ssh_hostname(ssh_hostname: str):
+    '''Converts a ssh config hostname to an actual machine .local hostname'''
+    proc = subprocess.run(['ssh', '-G', ssh_hostname], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    output = proc.stdout.decode(errors='replace')
+
+    lines = output.splitlines()
+
+    res_line = [line for line in lines if line.startswith('hostname')][0]
+    return res_line.split(' ')[1]
+
 # Kind of a random place to put this, and also this value should not be hardcoded in the first place.  Hopefully I will remember
 # to do something about this.
 # TODO: Un-hardcode this value so that this project doesn't only work for my specific setup
@@ -45,15 +57,16 @@ logfile = open(logfile_path, 'ab')
 logfile_error_path = os.path.expanduser('~/tmp/lsp_proxy_error_log.txt') if logging_enabled else os.devnull
 logfile_errors = open(logfile_error_path, 'wb')
 
-remote_host: str = config_dct.get('remote_host', '')
+remote_host_ssh: str = config_dct.get('remote_host', '')
 user_home_remote: str = config_dct.get('remote_user_home', '')
 remote_coding_root: str = config_dct.get('remote_coding_root', '')
 local_coding_root: str = config_dct.get('local_coding_root', '')
 
-if not all([remote_host, remote_coding_root, local_coding_root, user_home_remote]):
+if not all([remote_host_ssh, remote_coding_root, local_coding_root, user_home_remote]):
     raise RuntimeError(f'Error, not all required config entries found: remote_host, remote_coding_root, local_coding_root, user_home_remote')
 
 
+remote_host: str = convert_ssh_hostname(remote_host_ssh)
 
 
 # Keep track of currently used message ids, because occasionally we need to genuinely create a new message from scratch.
@@ -677,12 +690,6 @@ def ensure_remote_directory(path: str):
     if res_str == 'true':
         return True
     # print(res_str, end='')
-
-
-
-
-
-
 
 
 
