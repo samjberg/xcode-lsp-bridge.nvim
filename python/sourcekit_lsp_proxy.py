@@ -1,4 +1,3 @@
-from json import decoder
 import shlex
 import os, sys, subprocess, threading
 # from cached_message import CachedMessage, EMPTY_MESSAGE, INVALID_ID
@@ -30,7 +29,9 @@ set_xbs_envvars_arg = f'export SOURCEKIT_LOGGING=3 && export XBS_LOGPATH={user_h
 remote_sourcekit_lsp_cmd = f'cd {shlex.quote(current_project_root_remote)} && {set_xbs_envvars_arg} && xcrun {sklsp_path}'
 # remote_sourcekit_lsp_cmd = f'cd {shlex.quote(current_project_root_remote)} && {set_xbs_envvars_arg} && {pypath} {sklsp_wrapper_path}'
 # remote_sourcekit_lsp_cmd = 'cd ' + shlex.quote(current_project_root_remote) + ' && xcrun ' + sklsp_path + ' 2>/Users/sam/tmp/sklsp.log'
-remote_cmd_args = ['ssh', '-T', remote_host, *shlex.split(remote_sourcekit_lsp_cmd)]
+ssh_path: str = 'C:/msys64/usr/bin/ssh.exe'
+# remote_cmd_args = [ssh_path, '-T', remote_host, *shlex.split(remote_sourcekit_lsp_cmd)]
+remote_cmd_args = [ssh_path, '-T', '-o', 'Hostname=10.0.0.5', '-o', 'HostKeyAlias=Sams-MacBook-Pro.local', 'mac-clangd', *shlex.split(remote_sourcekit_lsp_cmd)]
 dev_null = open(os.devnull, 'w')
 stderr = dev_null
 # stderr = open('C:/Users/sjber/tmp/lsp_proxy_error_log.txt', 'ab')
@@ -414,7 +415,10 @@ def nvim_to_backend():
             break
 
         with sourcekit_in_lock:
-            os.write(sourcekit_lsp_in_fd, translated_data)
+            try:
+                os.write(sourcekit_lsp_in_fd, translated_data)
+            except BrokenPipeError:
+                log_unmissable(f'BROKEN PIPE; sourcekit_in return code: {sourcekit_lsp.poll()}')
 
 
 
