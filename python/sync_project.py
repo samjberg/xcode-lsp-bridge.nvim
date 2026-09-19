@@ -2,6 +2,7 @@
 import shlex
 import subprocess
 from rdt_utils import *
+from mdnsresolver.mdns import resolve_hostname
 
 # Syncronization directions
 PUSH = 'push'
@@ -26,7 +27,7 @@ def create_local_rsync_arg(path: str, as_dir: bool = True):
 def create_remote_rsync_arg(path: str, as_dir: bool = True):
     normed_path = normalize_path(path, strip_drive=True)
     normed_path += '/' if as_dir else ''
-    return f'{remote_host}:{normed_path}'
+    return f'{remote_host_ssh}:{normed_path}'
 
 
 def create_rsync_cmd(local_path: str, remote_path: str, sync_direction=PUSH, local_is_dir=True, remote_is_dir=True):
@@ -34,8 +35,19 @@ def create_rsync_cmd(local_path: str, remote_path: str, sync_direction=PUSH, loc
     # dst = create_remote_rsync_arg(dst_path, dst_is_dir) if sync_direction==PUSH else create_local_rsync_arg(dst_path, dst_is_dir)
     local = create_local_rsync_arg(local_path, as_dir=local_is_dir)
     remote = create_remote_rsync_arg(remote_path, as_dir=remote_is_dir)
-    base = 'rsync -azP -e /usr/bin/ssh '
-    return shlex.split(f'{base} {local} {remote}') if sync_direction==PUSH else shlex.split(f'{base} {remote} {local}')
+    remote_ip = resolve_hostname(remote_host)
+    ssh_cmd = (f'/usr/bin/ssh '
+               f'-o Hostname={remote_ip} ' 
+               f'-o HostKeyAlias={remote_host}')
+    cmd = ['rsync',
+           '-azP', 
+           '-e', 
+           ssh_cmd, 
+           local if sync_direction == PUSH else remote, 
+           remote if sync_direction == PUSH else local]
+    return cmd
+    # base = 'rsync -azP -e /usr/bin/ssh '
+    # return shlex.split(f'{base} {local} {remote}') if sync_direction==PUSH else shlex.split(f'{base} {remote} {local}')
 
 def sync_project(project_root: str = '', sync_direction=PUSH, dry_run=True):
     if sync_direction not in [PUSH, PULL]:
@@ -69,8 +81,8 @@ if __name__ == '__main__':
     project_root = sys.argv[-1]
     for arg in sys.argv[1:]:
         if arg.startswith('--remote-host='):
-            remote_host = arg.split('=')[1]
+            remote_host_ssh = arg.split('=')[1]
             break
-    if remote_host == 'mac-clangd':
+    if remote_host_ssh == 'mac-clangd':
         sync_project(project_root, dry_run=False)
         # print(f'Will run command with local_path: {cwd}')

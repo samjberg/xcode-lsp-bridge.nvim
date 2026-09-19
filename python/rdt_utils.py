@@ -57,6 +57,7 @@ logfile = open(logfile_path, 'ab')
 logfile_error_path = os.path.expanduser('~/tmp/lsp_proxy_error_log.txt') if logging_enabled else os.devnull
 logfile_errors = open(logfile_error_path, 'wb')
 
+#this used to be called remote_host, remote_host_ssh is the ssh config hostname
 remote_host_ssh: str = config_dct.get('remote_host', '')
 user_home_remote: str = config_dct.get('remote_user_home', '')
 remote_coding_root: str = config_dct.get('remote_coding_root', '')
@@ -65,7 +66,7 @@ local_coding_root: str = config_dct.get('local_coding_root', '')
 if not all([remote_host_ssh, remote_coding_root, local_coding_root, user_home_remote]):
     raise RuntimeError(f'Error, not all required config entries found: remote_host, remote_coding_root, local_coding_root, user_home_remote')
 
-
+# this variable name used to reprsent the ssh config hostname.  It now represents the actual machine .local hostname
 remote_host: str = convert_ssh_hostname(remote_host_ssh)
 
 
