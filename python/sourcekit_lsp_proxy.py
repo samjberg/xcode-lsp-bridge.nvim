@@ -54,6 +54,7 @@ sourcekit_lsp_out_fd = sourcekit_lsp.stdout.fileno()
 # remote_sourcekit_lsp_args = ['sourcekit-lsp', 
 
 definition_cache: dict[str, dict] = load_definition_cache()
+rename_dict: dict[int, Message] = {}
 shutting_down = False
 
 
@@ -345,6 +346,50 @@ def debounce_did_change_messages():
                 buf.ds_update_in_flight = True
         time.sleep(0.25)
 
+def handle_rename_request(msg: Message):
+    if msg.method != 'textDocument/rename':
+        raise RuntimeError(f'Error, handle_rename_request called with a non rename message.  Message method: {msg.method}')
+    cache_message(msg)
+
+def handle_rename_response(msg: Message):
+    dct: dict = msg.dct
+
+    # if there was a rename error, pass the message through to nvim unchanged, delete the cached message, and return early
+    if 'error' in dct:
+        os.write(stdout_fd, msg.as_bytes())
+        if msg.id in cached_messages:
+            del cached_messages[msg.id]
+        return
+
+    if 'result' not in dct:
+        raise RuntimeError(f'Error, "result" not found in dct in handle_rename_response.  "result" should always be present in a rename message.  msg: {msg}')
+
+    result: dict = dct.get('result', {})
+
+    if not isinstance(result, dict):
+        raise TypeError(f'Error, "result" is not a dict.  result: {result}')
+
+    if 'changes' in result:
+        changes: dict = result.get('changes', {})
+        if not isinstance(changes, dict):
+            raise TypeError(f'Error, "changes" is not a dict.  changes: {changes}')
+        remapped_changes: dict = {}
+        for uri, change in changes.items():
+            if not isinstance(uri, str):
+                raise TypeError(f'Error, the type of a key in "changes" dict is not a str.  It should be a file uri, got: {uri}')
+            if not is_uri(uri):
+                raise ValueError(f'Error, the value of a key in "changes" dict is not a uri: {uri}')
+            remapped_uri: str = clangd_path_mapping_uri(uri, REMOTE_TO_LOCAL)
+            remapped_changes[remapped_uri] = change
+        result['changes'] = remapped_changes
+    elif 'documentChanges' in result:
+        msg.translate_paths(REMOTE_TO_LOCAL)
+    else:
+        raise RuntimeError(f'Error, neither "changes" nor "documentChanges" found in Message passed to handle_rename_response.  msg: {msg}')
+
+    os.write(stdout_fd, msg.as_bytes())
+    if msg.id in cached_messages:
+        del cached_messages[msg.id]
 
 def nvim_to_backend():
     '''
@@ -395,6 +440,9 @@ def nvim_to_backend():
                 raise RuntimeError(f'Error, buffer with uri: {uri} not found in open_buffers')
             buf: Buffer = open_buffers[uri]
             buf.apply_didchange_message(msg)
+
+        elif method == 'textDocument/rename':
+            handle_rename_request(msg)
 
 
         translated_dct = msg.translate_paths(inplace=False)
@@ -473,6 +521,9 @@ def backend_to_nvim():
 
                 # continue so that the message is not passed on to nvim.  Since it is a message created manually by the proxy,
                 # nvim is not expecting a response and will produce an error if it receieves one
+                continue
+            elif cached_msg.method == 'textDocument/rename':
+                handle_rename_response(msg)
                 continue
             # elif cached_msg.method == 'initialize':
                 # msg is the response from the initialize request, cached_msg is the initialize request
