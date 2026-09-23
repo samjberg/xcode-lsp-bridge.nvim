@@ -491,11 +491,18 @@ def translate_paths_recursively_for_remote(dct: dict, direction=LOCAL_TO_REMOTE)
             # if the key is workspaceFolders, then manually remap 'name' parameter to be the root folder name
         elif isinstance(val, list):
             if key == 'result':
-                for res in val:
+                for i, res in enumerate(val):
                     if 'uri' in res:
                         # log_unmissable('FOUND `uri` IN OBJECT)
                         uri = res['uri']
                         res['uri'] = clangd_path_mapping_uri(uri, direction)
+                    elif isinstance(res, dict):
+                        # res, i.e. val[i], is a dict, AND it does NOT contain 'uri'.
+                        # so in this situation we just recursaively call this function to translate all paths in this dict,
+                        # and then replace it at the same index.  This is effectively just translating all paths in place recursively
+                        # in the dict res
+                        val[i] = translate_paths_recursively_for_remote(res, direction)
+
             elif key == 'workspaceFolders':
                 folders_lst = []
                 for folder in val:
@@ -510,8 +517,10 @@ def translate_paths_recursively_for_remote(dct: dict, direction=LOCAL_TO_REMOTE)
                     folders_lst.append(folder)
                 dct[key] = folders_lst
 
-
-                pass
+            else: # general case where val is a list, but key is neither 'result' nor 'workspaceFolders'
+                for i, res in enumerate(val):
+                    if isinstance(res, dict):
+                        val[i] = translate_paths_recursively_for_remote(res, direction)
 
 
         # else:
