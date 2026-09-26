@@ -472,19 +472,26 @@ def translate_paths_recursively_for_remote(dct: dict, direction=LOCAL_TO_REMOTE)
     '''
     path_keys_to_translate = ['rootPath', 'path', 'oldPath', 'newPath']
     uri_keys_to_translate = ['rootUri', 'uri', 'targetUri', 'oldUri', 'newUri']
+    keys_to_exclude = ['text', 'newText', 'insertText', 'triggerCharacter']
+    # fixing a bug with non-paths being interpreted as paths, specifically the issue was with "\\" (or just \ without the escaping)
+    # So excluded_paths is just for the case where the key is not in (path/uri)_keys_to_translate, but val is still a str.
+    # We DO translate those, because there can be genuine uris/paths in unexpected keys.  But the overtranslation issue is still a thing,
+    # so excluded_paths is just to make sure that '/' '\\' and '.' don't get translated, because it can break string parsing in the editor
+    excluded_paths = ['/', '\\', '.']
     for key, val in dct.items():
         if key in path_keys_to_translate:
             dct[key] = clangd_path_mapping_path(val, direction)
         elif key in uri_keys_to_translate:
             dct[key] = clangd_path_mapping_uri(val, direction)
-        elif isinstance(val, str):
-            if is_uri(val):
-                # There can be URIs under unexpected keys.  This elif block is to catch those instances and make sure they are translated
-                dct[key] = clangd_path_mapping_uri(val, direction)
-            elif os.path.exists(val):
-                # we know val is a str here, so it is safe to make this check.  If it is true, then of course val is a path,
-                # and so should be translated
-                dct[key] = clangd_path_mapping_path(val, direction)
+        elif isinstance(val, str) and (key not in keys_to_exclude):
+            if val not in excluded_paths:
+                if is_uri(val):
+                    # There can be URIs under unexpected keys.  This elif block is to catch those instances and make sure they are translated
+                    dct[key] = clangd_path_mapping_uri(val, direction)
+                elif os.path.exists(val):
+                    # we know val is a str here, so it is safe to make this check.  If it is true, then of course val is a path,
+                    # and so should be translated
+                    dct[key] = clangd_path_mapping_path(val, direction)
         elif isinstance(val, dict):
             # Any time val is a dict, we recursively call this function on it
             dct[key] = translate_paths_recursively_for_remote(val, direction)
